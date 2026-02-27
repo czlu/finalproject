@@ -136,9 +136,9 @@ lsm303agr_measurement_t lsm303agr_read_accelerometer(void) {
   uint8_t z_l = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_Z_L_A);
   uint8_t z_h = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_Z_H_A);
 
-  int16_t x_raw = ((x_h << 16) & x_l) >> 6;
-  int16_t y_raw = ((y_h << 16) & y_l) >> 6;
-  int16_t z_raw = ((z_h << 16) & z_l) >> 6;
+  int16_t x_raw = ((x_h << 8) | x_l) >> 6;
+  int16_t y_raw = ((y_h << 8) | y_l) >> 6;
+  int16_t z_raw = ((z_h << 8) | z_l) >> 6;
 
   float x_scaled = (float) x_raw * 3.9 / 1000.0;
   float y_scaled = (float) y_raw * 3.9 / 1000.0;
