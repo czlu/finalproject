@@ -23,7 +23,12 @@ void print_reading() {
   printf("Current temp: %f\n", temp);
 
   lsm303agr_measurement_t accel = lsm303agr_read_accelerometer();
-  printf("x: %f, y: %f, z: %f\n", accel.x_axis, accel.y_axis, accel.z_axis);
+  printf("acc\n x: %f, y: %f, z: %f\n", accel.x_axis, accel.y_axis, accel.z_axis);
+  printf("----------------\n");
+
+  lsm303agr_measurement_t mag = lsm303agr_read_magnetometer();
+  printf("mag\n x: %f, y: %f, z: %f\n", mag.x_axis, mag.y_axis, mag.z_axis);
+  printf("------------------------------\n");
 }
 
 int main(void) {

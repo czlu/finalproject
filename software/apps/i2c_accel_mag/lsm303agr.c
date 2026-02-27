@@ -154,8 +154,25 @@ lsm303agr_measurement_t lsm303agr_read_accelerometer(void) {
 
 lsm303agr_measurement_t lsm303agr_read_magnetometer(void) {
   //TODO: implement me
+  uint8_t x_l = i2c_reg_read(LSM303AGR_MAG_ADDRESS, OUTX_L_REG_M);
+  uint8_t x_h = i2c_reg_read(LSM303AGR_MAG_ADDRESS, OUTX_H_REG_M);
+  uint8_t y_l = i2c_reg_read(LSM303AGR_MAG_ADDRESS, OUTY_L_REG_M);
+  uint8_t y_h = i2c_reg_read(LSM303AGR_MAG_ADDRESS, OUTY_H_REG_M);
+  uint8_t z_l = i2c_reg_read(LSM303AGR_MAG_ADDRESS, OUTY_L_REG_M);
+  uint8_t z_h = i2c_reg_read(LSM303AGR_MAG_ADDRESS, OUTY_H_REG_M);
 
-  lsm303agr_measurement_t measurement = {0};
+  int16_t x_raw = ((x_h << 8) | x_l);
+  int16_t y_raw = ((y_h << 8) | y_l);
+  int16_t z_raw = ((z_h << 8) | z_l);
+
+  float x_scaled = (float) x_raw * 1.5 / 10.0;
+  float y_scaled = (float) y_raw * 1.5 / 10.0;
+  float z_scaled = (float) z_raw * 1.5 / 10.0;
+
+  lsm303agr_measurement_t measurement = {    
+    x_scaled,
+    y_scaled,
+    z_scaled};
 
   return measurement;
 }
