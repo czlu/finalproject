@@ -29,6 +29,9 @@ void print_reading() {
   lsm303agr_measurement_t mag = lsm303agr_read_magnetometer();
   printf("mag\n x: %f, y: %f, z: %f\n", mag.x_axis, mag.y_axis, mag.z_axis);
   printf("------------------------------\n");
+
+  float tilt = calculate_tilt(accel);
+  printf("tilt angle: %f\n", tilt);
 }
 
 int main(void) {

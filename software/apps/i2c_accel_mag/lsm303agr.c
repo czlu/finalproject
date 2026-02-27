@@ -3,6 +3,7 @@
 // Initializes sensor and communicates over I2C
 // Capable of reading temperature, acceleration, and magnetic field strength
 
+#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -177,3 +178,10 @@ lsm303agr_measurement_t lsm303agr_read_magnetometer(void) {
   return measurement;
 }
 
+float calculate_tilt(lsm303agr_measurement_t accel) {
+  float numerator = sqrt(accel.x_axis*accel.x_axis + accel.y_axis*accel.y_axis);
+  float phi_rads = atan(numerator / accel.z_axis);
+  float phi_deg = phi_rads * 180 / M_PI;
+
+  return phi_deg;
+}

@@ -104,3 +104,4 @@ lsm303agr_measurement_t lsm303agr_read_accelerometer(void);
 // Return measurements as floating point values in uT
 lsm303agr_measurement_t lsm303agr_read_magnetometer(void);
 
+float calculate_tilt(lsm303agr_measurement_t);
