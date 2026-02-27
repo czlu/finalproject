@@ -119,7 +119,7 @@ float lsm303agr_read_temperature(void) {
   uint8_t temp_l = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_TEMP_L_A);
   uint8_t temp_h = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_TEMP_H_A);
 
-  int16_t temp = (temp_h << 8) | temp_l;
+  int16_t temp = ((uint16_t)temp_h << 8) | temp_l;
 
   float celsius = ((float)temp / 256.0) + 25.0;
 
@@ -129,7 +129,26 @@ float lsm303agr_read_temperature(void) {
 lsm303agr_measurement_t lsm303agr_read_accelerometer(void) {
   //TODO: implement me
 
-  lsm303agr_measurement_t measurement = {0};
+  uint8_t x_l = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_X_L_A);
+  uint8_t x_h = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_X_H_A);
+  uint8_t y_l = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_Y_L_A);
+  uint8_t y_h = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_Y_H_A);
+  uint8_t z_l = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_Z_L_A);
+  uint8_t z_h = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_Z_H_A);
+
+  int16_t x_raw = ((x_h << 16) & x_l) >> 6;
+  int16_t y_raw = ((y_h << 16) & y_l) >> 6;
+  int16_t z_raw = ((z_h << 16) & z_l) >> 6;
+
+  float x_scaled = (float) x_raw * 3.9 / 1000.0;
+  float y_scaled = (float) y_raw * 3.9 / 1000.0;
+  float z_scaled = (float) z_raw * 3.9 / 1000.0;
+
+  lsm303agr_measurement_t measurement = {
+    x_scaled,
+    y_scaled,
+    z_scaled
+  };
   return measurement;
 }
 

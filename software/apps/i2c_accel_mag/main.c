@@ -18,9 +18,12 @@
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 1, 0);
 APP_TIMER_DEF(timer_1);
 
-void print_read_temp() {
+void print_reading() {
   float temp = lsm303agr_read_temperature();
   printf("Current temp: %f\n", temp);
+
+  lsm303agr_measurement_t accel = lsm303agr_read_accelerometer();
+  printf("x: %f, y: %f, z: %f\n", accel.x_axis, accel.y_axis, accel.z_axis);
 }
 
 int main(void) {
@@ -43,7 +46,7 @@ int main(void) {
 
   //TODO: implement me!
   app_timer_init();
-  app_timer_create(&timer_1, APP_TIMER_MODE_REPEATED, print_read_temp);
+  app_timer_create(&timer_1, APP_TIMER_MODE_REPEATED, print_reading);
   app_timer_start(timer_1, 32768, NULL);
 
   // Loop forever
