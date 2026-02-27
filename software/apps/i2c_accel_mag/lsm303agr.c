@@ -9,7 +9,9 @@
 
 #include "lsm303agr.h"
 #include "nrf_delay.h"
+#include "nrf_error.h"
 #include "nrf_twi_mngr.h"
+#include "sdk_errors.h"
 
 // Pointer to an initialized I2C instance to use for transactions
 static const nrf_twi_mngr_t* i2c_manager = NULL;
@@ -48,6 +50,13 @@ static uint8_t i2c_reg_read(uint8_t i2c_addr, uint8_t reg_addr) {
 static void i2c_reg_write(uint8_t i2c_addr, uint8_t reg_addr, uint8_t data) {
   //TODO: implement me
   //Note: there should only be a single two-byte transfer to be performed
+  uint8_t msg[2] = {reg_addr, data};
+  nrf_twi_mngr_transfer_t write_transfer = NRF_TWI_MNGR_WRITE(i2c_addr, msg, 2, 0);
+
+  ret_code_t result = nrf_twi_mngr_perform(i2c_manager, NULL, &write_transfer, 1, NULL);
+  if (result != NRF_SUCCESS) {
+    printf("I2C transaction failed! Error: %lX\n", result);
+  }
 }
 
 // Initialize and configure the LSM303AGR accelerometer/magnetometer
@@ -107,8 +116,14 @@ void lsm303agr_init(const nrf_twi_mngr_t* i2c) {
 // Return measurement as floating point value in degrees C
 float lsm303agr_read_temperature(void) {
   //TODO: implement me
+  uint8_t temp_l = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_TEMP_L_A);
+  uint8_t temp_h = i2c_reg_read(LSM303AGR_ACC_ADDRESS, OUT_TEMP_H_A);
 
-  return 0.0;
+  int16_t temp = (temp_h << 8) | temp_l;
+
+  float celsius = ((float)temp / 256.0) + 25.0;
+
+  return celsius;
 }
 
 lsm303agr_measurement_t lsm303agr_read_accelerometer(void) {

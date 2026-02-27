@@ -9,12 +9,19 @@
 
 #include "nrf_delay.h"
 #include "nrf_twi_mngr.h"
+#include "app_timer.h"
 
 #include "microbit_v2.h"
 #include "lsm303agr.h"
 
 // Global variables
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 1, 0);
+APP_TIMER_DEF(timer_1);
+
+void print_read_temp() {
+  float temp = lsm303agr_read_temperature();
+  printf("Current temp: %f\n", temp);
+}
 
 int main(void) {
   printf("Board started!\n");
@@ -35,6 +42,9 @@ int main(void) {
   lsm303agr_init(&twi_mngr_instance);
 
   //TODO: implement me!
+  app_timer_init();
+  app_timer_create(&timer_1, APP_TIMER_MODE_REPEATED, print_read_temp);
+  app_timer_start(timer_1, 32768, NULL);
 
   // Loop forever
   while (1) {
