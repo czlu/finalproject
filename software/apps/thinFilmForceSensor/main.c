@@ -3,46 +3,93 @@
 #include <stdio.h>
 #include "nrf_delay.h"
 #include "nrf_gpio.h"
+#include "nrfx_pwm.h"
 #include "microbit_v2.h"
 #include "fsr.h"
 
+#define SPEAKER_PIN EDGE_P1
+
+// PWM instance and configuration for the speaker
+static const nrfx_pwm_t PWM_INST = NRFX_PWM_INSTANCE(0);
+static bool speaker_on = false;
+
+// Duty cycle value for PWM (50% of countertop)
+// 500kHz / 440Hz ≈ 1136 countertop for an A4 tone
+#define TONE_COUNTERTOP 1136
+static nrf_pwm_values_common_t duty_val[1] = { TONE_COUNTERTOP / 2 };
+static nrf_pwm_sequence_t pwm_seq = {
+    .values.p_common = duty_val,
+    .length = 1,
+    .repeats = 0,
+    .end_delay = 0,
+};
+
+static void pwm_init(void) {
+    nrfx_pwm_config_t config = {
+        // Map the speaker to our chosen pin, leave the rest unused
+        .output_pins = { SPEAKER_PIN, NRFX_PWM_PIN_NOT_USED, NRFX_PWM_PIN_NOT_USED, NRFX_PWM_PIN_NOT_USED },
+        .irq_priority = 7,
+        .base_clock = NRF_PWM_CLK_500kHz,
+        .count_mode = NRF_PWM_MODE_UP,
+        .top_value = TONE_COUNTERTOP,
+        .load_mode = NRF_PWM_LOAD_COMMON,
+        .step_mode = NRF_PWM_STEP_AUTO,
+    };
+    nrfx_pwm_init(&PWM_INST, &config, NULL);
+}
+
 int main(void) {
-    printf("FSR Demo Starting...\n");
+    printf("Pressure Alarm & Visuals Starting...\n");
     fsr_init();
 
     // Arrays holding the pin definitions from microbit_v2.h
     uint32_t led_rows[5] = {LED_ROW1, LED_ROW2, LED_ROW3, LED_ROW4, LED_ROW5};
     uint32_t led_cols[5] = {LED_COL1, LED_COL2, LED_COL3, LED_COL4, LED_COL5};
 
-    // Initialize all LED pins as outputs
+    // Initialize PWM instead of standard GPIO for the speaker
+    pwm_init();
+
+    // Initialize all LED pins as outputs and turn them OFF
     for (int i = 0; i < 5; i++) {
         nrf_gpio_cfg_output(led_rows[i]);
         nrf_gpio_cfg_output(led_cols[i]);
         
-        // Start with all LEDs OFF 
-        // (Rows LOW means no power, Cols HIGH means no ground)
-        nrf_gpio_pin_clear(led_rows[i]); 
-        nrf_gpio_pin_set(led_cols[i]);   
+        nrf_gpio_pin_clear(led_rows[i]); // Rows LOW (no power)
+        nrf_gpio_pin_set(led_cols[i]);   // Cols HIGH (no ground)
     }
 
     while (1) {
         uint16_t weight = fsr_read_raw();
         
         if (weight >= 1600) {
-            printf("Force Reading: %u ---> PRESSED!\n", weight);
-            
-            // Turn ON all LEDs
-            for (int i = 0; i < 5; i++) {
-                nrf_gpio_pin_set(led_rows[i]);     // Power the rows (HIGH)
-                nrf_gpio_pin_clear(led_cols[i]);   // Sink the columns to ground (LOW)
+            // Only trigger if it isn't already blaring
+            if (!speaker_on) {
+                printf("Force: %u ---> ALARM ON!\n", weight);
+                
+                // Start the PWM tone
+                nrfx_pwm_simple_playback(&PWM_INST, &pwm_seq, 1, NRFX_PWM_FLAG_LOOP);
+                speaker_on = true;
+                
+                // Turn ON all LEDs
+                for (int i = 0; i < 5; i++) {
+                    nrf_gpio_pin_set(led_rows[i]);
+                    nrf_gpio_pin_clear(led_cols[i]);
+                }
             }
         } else {
-            printf("Force Reading: %u\n", weight);
-            
-            // Turn OFF all LEDs
-            for (int i = 0; i < 5; i++) {
-                nrf_gpio_pin_clear(led_rows[i]);   // Cut power to rows (LOW)
-                nrf_gpio_pin_set(led_cols[i]);     // Remove ground from columns (HIGH)
+            // Only trigger if it was previously blaring
+            if (speaker_on) {
+                printf("Force: %u ---> ALARM OFF\n", weight);
+                
+                // Stop the PWM tone
+                nrfx_pwm_stop(&PWM_INST, true);
+                speaker_on = false;
+                
+                // Turn OFF all LEDs
+                for (int i = 0; i < 5; i++) {
+                    nrf_gpio_pin_clear(led_rows[i]);
+                    nrf_gpio_pin_set(led_cols[i]);
+                }
             }
         }
         
