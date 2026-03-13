@@ -17,7 +17,7 @@
 #include "as7262.h"
 #include "fsr.h"
 #include "lcd.h"
-#include "light.h" // <-- Added the light sensor header!
+#include "light.h" 
 
 // I2C manager
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 1, 0);
@@ -57,6 +57,9 @@ static uint8_t dough_presses_needed = 0;
 static bool dough_ready = false;
 static bool fsr_was_pressed = false;
 
+// --- OVEN STATE VARIABLES ---
+static uint8_t bake_time = 0;
+
 // debounce variables
 static const char* candidate_scan = "Nothing";
 static uint8_t match_count = 0;
@@ -78,6 +81,7 @@ static void pick_new_pizza(void) {
     baking = false;
     pizza_ready = false;
     last_scan = "Nothing";
+    bake_time = 0; // Reset bake timer
     
     // Randomize dough presses between 5 and 10
     dough_presses_needed = 5 + (rand() % 6);
@@ -202,19 +206,37 @@ void game_tick(void* _unused) {
     } 
     // Phase 2: Baking in the Oven
     else if (baking) {
-        // Read the light sensor
         float current_lux = bh1750_read_lux();
         printf("Oven Light Level: %.1f Lux\n", current_lux);
         
         // If lux is very low, the "oven" lid is closed!
         if (current_lux < 20.0f) {
-            baking = false;
-            pizza_ready = true;
-            score++;
+            if (bake_time == 0) {
+                snprintf(message, sizeof(message), "Baking...");
+                message_color = COLOR_RED; // Set text to RED while baking
+                needs_redraw = true;
+            }
             
-            snprintf(message, sizeof(message), "PIZZA READY!");
-            message_color = COLOR_GREEN;
-            needs_redraw = true;
+            bake_time++; // Increase the timer
+            
+            // Require it to be dark for ~3 seconds (3 ticks)
+            if (bake_time >= 3) {
+                baking = false;
+                pizza_ready = true;
+                score++;
+                
+                snprintf(message, sizeof(message), "PIZZA READY!");
+                message_color = COLOR_GREEN;
+                needs_redraw = true;
+            }
+        } else {
+            // If they open the oven too early, reset the baking timer
+            if (bake_time > 0) {
+                bake_time = 0;
+                snprintf(message, sizeof(message), "Put in Oven!");
+                message_color = COLOR_ORANGE;
+                needs_redraw = true;
+            }
         }
     }
 
@@ -242,7 +264,7 @@ int main(void) {
     
     // Initialize both I2C sensors using the same manager
     as7262_init(&twi_mngr_instance);
-    bh1750_init(&twi_mngr_instance); // <-- Initialize the light sensor!
+    bh1750_init(&twi_mngr_instance);
 
     // FSR (ADC)
     fsr_init();
