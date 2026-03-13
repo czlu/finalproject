@@ -32,4 +32,7 @@ void lcd_draw_string(uint16_t x, uint16_t y, const char* str, uint16_t fg, uint1
 // Draw a string with 2x scaled font (16x32)
 void lcd_draw_string_2x(uint16_t x, uint16_t y, const char* str, uint16_t fg, uint16_t bg);
 
+// Draw a filled rectangle
+void lcd_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
+
 #endif

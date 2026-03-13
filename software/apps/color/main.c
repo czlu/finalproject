@@ -1,6 +1,6 @@
 // Pizza Builder on LCD
 // Color sensor (AS7262) detects toppings, FSR detects plate pressure,
-// LCD (ILI9341) shows the pizza game UI.
+// LCD (ILI9341) shows the pizza game UI, and BH1750 detects the oven.
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,6 +17,7 @@
 #include "as7262.h"
 #include "fsr.h"
 #include "lcd.h"
+#include "light.h" // <-- Added the light sensor header!
 
 // I2C manager
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 1, 0);
@@ -33,26 +34,40 @@ typedef struct {
 
 static const pizza_t pizzas[] = {
     {"Pepperoni",  {"Cheese", "Pepperoni", NULL},      2},
-    {"Veggie",     {"Cheese", "Veggies", NULL},         2},
+    {"Veggie",     {"Cheese", "Veggies", NULL},        2},
     {"Everything", {"Cheese", "Pepperoni", "Veggies"},  3},
+    {"Eggplant",   {"Cheese", "Eggplant", NULL},       2}, 
 };
-#define NUM_PIZZAS 3
+#define NUM_PIZZAS 4
 
 // Game state
 static uint8_t current_pizza = 0;
 static uint8_t step = 0;
-static bool done = false;
+static bool done = false;         // True when all toppings are added
+static bool baking = false;       // True when waiting for the oven
+static bool pizza_ready = false;  // True when it comes out of the oven
 static uint8_t score = 0;
 static const char* last_scan = "Nothing";
 static bool needs_redraw = true;
-static char message[40] = "Scan toppings!";
+static char message[40] = "Knead the dough!";
 static uint16_t message_color = COLOR_WHITE;
+
+// --- DOUGH STATE VARIABLES ---
+static uint8_t dough_presses_needed = 0;
+static bool dough_ready = false;
+static bool fsr_was_pressed = false;
+
+// debounce variables
+static const char* candidate_scan = "Nothing";
+static uint8_t match_count = 0;
+#define REQUIRED_MATCHES 3
 
 // Get color for a topping name
 static uint16_t topping_color(const char* name) {
     if (strcmp(name, "Cheese") == 0)    return COLOR_YELLOW;
     if (strcmp(name, "Pepperoni") == 0) return COLOR_RED;
     if (strcmp(name, "Veggies") == 0)   return COLOR_GREEN;
+    if (strcmp(name, "Eggplant") == 0)  return 0x780F; // A purple color
     return COLOR_GRAY;
 }
 
@@ -60,8 +75,15 @@ static void pick_new_pizza(void) {
     current_pizza = rand() % NUM_PIZZAS;
     step = 0;
     done = false;
+    baking = false;
+    pizza_ready = false;
     last_scan = "Nothing";
-    strcpy(message, "Scan toppings!");
+    
+    // Randomize dough presses between 5 and 10
+    dough_presses_needed = 5 + (rand() % 6);
+    dough_ready = false;
+    
+    strcpy(message, "Knead the dough!");
     message_color = COLOR_WHITE;
     needs_redraw = true;
 }
@@ -70,15 +92,15 @@ static void draw_game(void) {
     const pizza_t* p = &pizzas[current_pizza];
 
     // Background
-    lcd_fill_screen(COLOR_DARK);
+    lcd_fill_screen(COLOR_BLACK);
 
     // Title
-    lcd_draw_string_2x(30, 10, "PIZZA BUILDER", COLOR_ORANGE, COLOR_DARK);
+    lcd_draw_string_2x(30, 10, "PIZZA BUILDER", COLOR_ORANGE, COLOR_BLACK);
 
     // Pizza name
     char title[30];
     snprintf(title, sizeof(title), "Order: %s", p->name);
-    lcd_draw_string_2x(10, 40, title, COLOR_WHITE, COLOR_DARK);
+    lcd_draw_string_2x(10, 40, title, COLOR_WHITE, COLOR_BLACK);
 
     // Topping list with status
     for (uint8_t i = 0; i < p->count; i++) {
@@ -87,43 +109,44 @@ static void draw_game(void) {
         uint16_t fg;
 
         if (i < step) {
-            // Completed
             snprintf(line, sizeof(line), "[OK] %s", p->toppings[i]);
             fg = topping_color(p->toppings[i]);
-        } else if (i == step && !done) {
-            // Current step
+        } else if (i == step && !done && dough_ready) {
             snprintf(line, sizeof(line), "-> %s", p->toppings[i]);
             fg = COLOR_WHITE;
         } else {
-            // Future step
             snprintf(line, sizeof(line), "   %s", p->toppings[i]);
             fg = COLOR_GRAY;
         }
 
-        lcd_draw_string_2x(15, y, line, fg, COLOR_DARK);
+        lcd_draw_string_2x(15, y, line, fg, COLOR_BLACK);
+    }
+
+    // --- DOUGH STATUS SQUARE ---
+    uint16_t box_color = dough_ready ? COLOR_GREEN : COLOR_RED;
+    lcd_fill_rect(170, 75, 40, 40, box_color);
+    
+    if (!dough_ready) {
+        char presses_str[10];
+        snprintf(presses_str, sizeof(presses_str), "%d", dough_presses_needed);
+        lcd_draw_string_2x(185, 85, presses_str, COLOR_WHITE, COLOR_RED);
     }
 
     // Message area
-    lcd_draw_string_2x(10, 190, message, message_color, COLOR_DARK);
+    lcd_draw_string_2x(10, 190, message, message_color, COLOR_BLACK);
 
     // Score
     char score_str[20];
     snprintf(score_str, sizeof(score_str), "Score: %d", score);
-    lcd_draw_string_2x(10, 230, score_str, COLOR_WHITE, COLOR_DARK);
+    lcd_draw_string_2x(10, 230, score_str, COLOR_WHITE, COLOR_BLACK);
 
     // Current scan
     char scan_str[30];
     snprintf(scan_str, sizeof(scan_str), "Sensor: %s", last_scan);
-    lcd_draw_string(10, 270, scan_str, COLOR_GRAY, COLOR_DARK);
-
-    // Force sensor reading
-    uint16_t force = fsr_read_raw();
-    char force_str[30];
-    snprintf(force_str, sizeof(force_str), "Force: %u", force);
-    lcd_draw_string(10, 285, force_str, COLOR_GRAY, COLOR_DARK);
+    lcd_draw_string(10, 270, scan_str, COLOR_GRAY, COLOR_BLACK);
 
     // Button hint
-    lcd_draw_string(10, 305, "BTN_A = New Pizza", COLOR_GRAY, COLOR_DARK);
+    lcd_draw_string(10, 305, "BTN_A = New Pizza", COLOR_GRAY, COLOR_BLACK);
 }
 
 static void handle_scan(const char* ingredient) {
@@ -137,10 +160,11 @@ static void handle_scan(const char* ingredient) {
         if (strcmp(ingredient, p->toppings[step]) == 0) {
             step++;
             if (step >= p->count) {
+                // ALL TOPPINGS ADDED! Send it to the oven.
                 done = true;
-                score++;
-                snprintf(message, sizeof(message), "%s done!", p->name);
-                message_color = COLOR_GREEN;
+                baking = true;
+                snprintf(message, sizeof(message), "Put in Oven!");
+                message_color = COLOR_ORANGE;
             } else {
                 snprintf(message, sizeof(message), "Good! Next: %s", p->toppings[step]);
                 message_color = COLOR_GREEN;
@@ -156,16 +180,43 @@ static void handle_scan(const char* ingredient) {
 void game_tick(void* _unused) {
     (void)_unused;
 
-    // Read color sensor
-    as7262_color_t color = as7262_read_color();
-    const char* current = as7262_color_name(color);
+    // Phase 1: Adding Toppings
+    if (dough_ready && !done) {
+        as7262_color_t color = as7262_read_color();
+        const char* current = as7262_color_name(color);
 
-    // Print to serial too (for debugging / GUI)
-    printf("V:%.1f B:%.1f G:%.1f Y:%.1f O:%.1f R:%.1f => %s\n",
-        color.violet, color.blue, color.green,
-        color.yellow, color.orange, color.red, current);
-
-    handle_scan(current);
+        if (strcmp(current, "Nothing") == 0) {
+            candidate_scan = "Nothing";
+            match_count = 0;
+        } else if (strcmp(current, candidate_scan) == 0) {
+            match_count++;
+            if (match_count == REQUIRED_MATCHES) {
+                handle_scan(current);
+                match_count = 0; 
+                candidate_scan = "Nothing"; 
+            }
+        } else {
+            candidate_scan = current;
+            match_count = 1;
+        }
+    } 
+    // Phase 2: Baking in the Oven
+    else if (baking) {
+        // Read the light sensor
+        float current_lux = bh1750_read_lux();
+        printf("Oven Light Level: %.1f Lux\n", current_lux);
+        
+        // If lux is very low, the "oven" lid is closed!
+        if (current_lux < 20.0f) {
+            baking = false;
+            pizza_ready = true;
+            score++;
+            
+            snprintf(message, sizeof(message), "PIZZA READY!");
+            message_color = COLOR_GREEN;
+            needs_redraw = true;
+        }
+    }
 
     // Check Button A for new pizza
     if (!nrf_gpio_pin_read(BTN_A)) {
@@ -181,14 +232,17 @@ void game_tick(void* _unused) {
 int main(void) {
     printf("Pizza Builder starting...\n");
 
-    // I2C for color sensor
+    // I2C for color sensor AND light sensor
     nrf_drv_twi_config_t i2c_config = NRF_DRV_TWI_DEFAULT_CONFIG;
     i2c_config.scl = EDGE_P19;
     i2c_config.sda = EDGE_P20;
     i2c_config.frequency = NRF_DRV_TWI_FREQ_100K;
     i2c_config.interrupt_priority = 0;
     nrf_twi_mngr_init(&twi_mngr_instance, &i2c_config);
+    
+    // Initialize both I2C sensors using the same manager
     as7262_init(&twi_mngr_instance);
+    bh1750_init(&twi_mngr_instance); // <-- Initialize the light sensor!
 
     // FSR (ADC)
     fsr_init();
@@ -213,6 +267,29 @@ int main(void) {
     app_timer_start(game_timer, 32768, NULL);
 
     while (1) {
-        nrf_delay_ms(100);
+        // --- FSR DOUGH KNEADING LOGIC ---
+        if (!dough_ready) {
+            uint16_t force = fsr_read_raw();
+            
+            if (force > 1600 && !fsr_was_pressed) {
+                fsr_was_pressed = true; 
+                
+                if (dough_presses_needed > 0) {
+                    dough_presses_needed--;
+                    needs_redraw = true;
+                    
+                    if (dough_presses_needed == 0) {
+                        dough_ready = true;
+                        strcpy(message, "Add toppings!");
+                        message_color = COLOR_GREEN;
+                    }
+                }
+            } 
+            else if (force < 1000) {
+                fsr_was_pressed = false;
+            }
+        }
+        
+        nrf_delay_ms(50); 
     }
 }

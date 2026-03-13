@@ -141,37 +141,33 @@ as7262_color_t as7262_read_color(void) {
 }
 
 const char* as7262_color_name(as7262_color_t c) {
-  // Total light across all channels
-  float total = c.violet + c.blue + c.green + c.yellow + c.orange + c.red;
+    float total = c.violet + c.blue + c.green + c.yellow + c.orange + c.red;
 
-  // If very little light, nothing is in front of the sensor
-  if (total < 10.0f) {
-    return "Nothing";
-  }
+    // 1. Absolute Brightness Check
+    // Lowered to 800 to allow the dark eggplant to register
+    if (total < 800.0f) {
+        return "Nothing";
+    }
 
-  // Compute channel ratios relative to total
-  float red_orange_ratio = (c.red + c.orange) / total;
-  float green_ratio = c.green / total;
-  float yellow_ratio = c.yellow /total;
+    // 2. EGGPLANT
+    // Eggplant is the only topping where Violet completely overpowers Orange and Red
+    if (c.violet > c.orange && c.violet > c.red) {
+        return "Eggplant";
+    }
 
-  if (c.violet <100 && c.blue <100 && c.green <100 && c.yellow <100 && c.orange <100 && c.red <100) {
-    return "Nothing";
-  }
+    // 3. VEGGIES
+    // Green dominates
+    if (c.green > c.orange) {
+        return "Veggies";
+    }
 
-  // Tomato: red+orange dominate (they should be well above half the total)
-  if (red_orange_ratio > 0.45f && c.red > c.green && c.red > c.blue) {
-    return "Pepperoni";
-  }
+    // 4. PEPPERONI
+    // Red heavily dominates Green
+    if (c.red > (c.green * 1.5f)) {
+        return "Pepperoni";
+    }
 
-  // Spinach: green is the dominant channel
-  if (green_ratio > 0.20f && c.green > c.red && c.green > c.orange) {
-    return "Veggies";
-  }
-
-  if (yellow_ratio > 0.20f && c.yellow > c.red && c.yellow > c.orange) {
+    // 5. CHEESE
+    // If it's bright enough to pass step 1, but doesn't fit the others
     return "Cheese";
-  }
-
-  // Everything else (ambient light, etc.) — no clear object detected
-  return "Nothing";
 }
