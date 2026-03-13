@@ -19,71 +19,59 @@
 #include "lcd.h"
 #include "light.h" 
 
-// I2C manager
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 1, 0);
-
-// Timer
 APP_TIMER_DEF(game_timer);
 
-// Pizza definitions
 typedef struct {
     const char* name;
-    const char* toppings[3]; // max 3 toppings
+    const char* toppings[3];
     uint8_t count;
 } pizza_t;
 
 static const pizza_t pizzas[] = {
     {"Pepperoni",  {"Cheese", "Pepperoni", NULL},      2},
     {"Veggie",     {"Cheese", "Veggies", NULL},        2},
-    {"Everything", {"Cheese", "Pepperoni", "Veggies"},  3},
+    {"Everything", {"Cheese", "Pepperoni", "Veggies"}, 3},
     {"Eggplant",   {"Cheese", "Eggplant", NULL},       2}, 
 };
 #define NUM_PIZZAS 4
 
-// Game state
 static uint8_t current_pizza = 0;
 static uint8_t step = 0;
-static bool done = false;         // True when all toppings are added
-static bool baking = false;       // True when waiting for the oven
-static bool pizza_ready = false;  // True when it comes out of the oven
-static int16_t score = 0;         // Changed to signed int so score can go negative!
+static bool done = false;
+static bool baking = false;  
+static bool pizza_ready = false; 
+static int16_t score = 0;
 static const char* last_scan = "Nothing";
 static bool needs_redraw = true;
 static char message[40] = "Knead the dough!";
 static uint16_t message_color = COLOR_WHITE;
 
-// --- DOUGH STATE VARIABLES ---
 static uint8_t dough_presses_needed = 0;
 static bool dough_ready = false;
 static bool fsr_was_pressed = false;
-
-// --- OVEN STATE VARIABLES ---
 static uint8_t bake_time = 0;
-
-// debounce variables
 static const char* candidate_scan = "Nothing";
 static uint8_t match_count = 0;
-#define REQUIRED_MATCHES 3
 
-// Get color for a topping name
 static uint16_t topping_color(const char* name) {
     if (strcmp(name, "Cheese") == 0)    return COLOR_YELLOW;
     if (strcmp(name, "Pepperoni") == 0) return COLOR_RED;
     if (strcmp(name, "Veggies") == 0)   return COLOR_GREEN;
-    if (strcmp(name, "Eggplant") == 0)  return 0x780F; // A purple color
+    if (strcmp(name, "Eggplant") == 0)  return 0x780F; 
     return COLOR_GRAY;
 }
 
 static void pick_new_pizza(void) {
+    //reset
     current_pizza = rand() % NUM_PIZZAS;
     step = 0;
     done = false;
     baking = false;
     pizza_ready = false;
     last_scan = "Nothing";
-    bake_time = 0; // Reset bake timer
+    bake_time = 0;
     
-    // Randomize dough presses between 5 and 10
     dough_presses_needed = 5 + (rand() % 6);
     dough_ready = false;
     
@@ -95,18 +83,13 @@ static void pick_new_pizza(void) {
 static void draw_game(void) {
     const pizza_t* p = &pizzas[current_pizza];
 
-    // Background
     lcd_fill_screen(COLOR_BLACK);
-
-    // Title
     lcd_draw_string_2x(30, 10, "PIZZA BUILDER", COLOR_ORANGE, COLOR_BLACK);
 
-    // Pizza name
     char title[30];
     snprintf(title, sizeof(title), "Order: %s", p->name);
     lcd_draw_string_2x(10, 40, title, COLOR_WHITE, COLOR_BLACK);
 
-    // Topping list with status
     for (uint8_t i = 0; i < p->count; i++) {
         uint16_t y = 75 + i * 35;
         char line[30];
@@ -126,7 +109,6 @@ static void draw_game(void) {
         lcd_draw_string_2x(15, y, line, fg, COLOR_BLACK);
     }
 
-    // --- DOUGH STATUS SQUARE ---
     uint16_t box_color = dough_ready ? COLOR_GREEN : COLOR_RED;
     lcd_fill_rect(170, 75, 40, 40, box_color);
     
@@ -136,21 +118,11 @@ static void draw_game(void) {
         lcd_draw_string_2x(185, 85, presses_str, COLOR_WHITE, COLOR_RED);
     }
 
-    // Message area
     lcd_draw_string_2x(10, 190, message, message_color, COLOR_BLACK);
 
-    // Score
     char score_str[20];
     snprintf(score_str, sizeof(score_str), "Score: %d", score);
     lcd_draw_string_2x(10, 230, score_str, COLOR_WHITE, COLOR_BLACK);
-
-    // Current scan
-    char scan_str[30];
-    snprintf(scan_str, sizeof(scan_str), "Sensor: %s", last_scan);
-    lcd_draw_string(10, 270, scan_str, COLOR_GRAY, COLOR_BLACK);
-
-    // Button hint
-    lcd_draw_string(10, 305, "BTN_A = New Pizza", COLOR_GRAY, COLOR_BLACK);
 }
 
 static void handle_scan(const char* ingredient) {
@@ -164,7 +136,7 @@ static void handle_scan(const char* ingredient) {
         if (strcmp(ingredient, p->toppings[step]) == 0) {
             step++;
             if (step >= p->count) {
-                // ALL TOPPINGS ADDED! Send it to the oven.
+                // ALL TOPPINGS ADDED! send to the oven.
                 done = true;
                 baking = true;
                 snprintf(message, sizeof(message), "Put in Oven!");
@@ -184,7 +156,7 @@ static void handle_scan(const char* ingredient) {
 void game_tick(void* _unused) {
     (void)_unused;
 
-    // Phase 1: Adding Toppings
+    // toppings
     if (dough_ready && !done) {
         as7262_color_t color = as7262_read_color();
         const char* current = as7262_color_name(color);
@@ -194,7 +166,7 @@ void game_tick(void* _unused) {
             match_count = 0;
         } else if (strcmp(current, candidate_scan) == 0) {
             match_count++;
-            if (match_count == REQUIRED_MATCHES) {
+            if (match_count == 3) {
                 handle_scan(current);
                 match_count = 0; 
                 candidate_scan = "Nothing"; 
@@ -204,13 +176,13 @@ void game_tick(void* _unused) {
             match_count = 1;
         }
     } 
-    // Phase 2: Baking in the Oven
+    // baking
     else if (baking) {
         float current_lux = bh1750_read_lux();
         
-        // The oven lid is CLOSED (Dark)
+        // currently baking
         if (current_lux < 20.0f) {
-            bake_time++; // Increase the timer every second
+            bake_time++; 
             
             if (bake_time < 10) {
                 snprintf(message, sizeof(message), "Baking... %ds", bake_time);
@@ -225,26 +197,28 @@ void game_tick(void* _unused) {
             needs_redraw = true;
             
         } 
-        // The oven lid is OPEN (Light)
+        // not baking
         else {
+            // burnt
             if (bake_time >= 17) {
-                // They pulled out a burnt pizza
                 baking = false;
                 pizza_ready = true;
-                score -= 2; // Punish the player!
+                score -= 2; 
                 snprintf(message, sizeof(message), "Burnt to a crisp! -2");
                 message_color = COLOR_RED;
                 needs_redraw = true;
-            } else if (bake_time >= 10) {
-                // They pulled it out at the perfect time!
+            } 
+            // good
+            else if (bake_time >= 10) {
                 baking = false;
                 pizza_ready = true;
                 score++;
                 snprintf(message, sizeof(message), "PIZZA PERFECT! +1");
                 message_color = COLOR_GREEN;
                 needs_redraw = true;
-            } else if (bake_time > 0) {
-                // They peaked! Reset the timer to punish them.
+            } 
+            // too early
+            else if (bake_time > 0) {
                 bake_time = 0;
                 snprintf(message, sizeof(message), "Too early! Put back!");
                 message_color = COLOR_ORANGE;
@@ -253,7 +227,6 @@ void game_tick(void* _unused) {
         }
     }
 
-    // Check Button A for new pizza
     if (!nrf_gpio_pin_read(BTN_A)) {
         pick_new_pizza();
     }
@@ -267,42 +240,28 @@ void game_tick(void* _unused) {
 int main(void) {
     printf("Pizza Builder starting...\n");
 
-    // I2C for color sensor AND light sensor
     nrf_drv_twi_config_t i2c_config = NRF_DRV_TWI_DEFAULT_CONFIG;
     i2c_config.scl = EDGE_P19;
     i2c_config.sda = EDGE_P20;
     i2c_config.frequency = NRF_DRV_TWI_FREQ_100K;
     i2c_config.interrupt_priority = 0;
     nrf_twi_mngr_init(&twi_mngr_instance, &i2c_config);
-    
-    // Initialize both I2C sensors using the same manager
     as7262_init(&twi_mngr_instance);
     bh1750_init(&twi_mngr_instance);
-
-    // FSR (ADC)
     fsr_init();
-
-    // LCD (SPI)
     lcd_init();
-
-    // Button A input
     nrf_gpio_cfg_input(BTN_A, NRF_GPIO_PIN_PULLUP);
-
-    // Seed random from first ADC reading
     srand(fsr_read_raw());
 
-    // Start game
     pick_new_pizza();
     draw_game();
     needs_redraw = false;
 
-    // Timer: tick every ~1 second
     app_timer_init();
     app_timer_create(&game_timer, APP_TIMER_MODE_REPEATED, game_tick);
     app_timer_start(game_timer, 32768, NULL);
 
     while (1) {
-        // --- FSR DOUGH KNEADING LOGIC ---
         if (!dough_ready) {
             uint16_t force = fsr_read_raw();
             

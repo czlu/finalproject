@@ -6,12 +6,10 @@
 #include "lcd.h"
 #include <string.h>
 
-// Wiring Pins
 #define LCD_CS   EDGE_P16
 #define LCD_DC   EDGE_P2
 #define LCD_RST  EDGE_P8
 
-// SPI Instance 2
 static const nrfx_spim_t spi = NRFX_SPIM_INSTANCE(2);
 
 // 5x7 ASCII font (chars 32-126)

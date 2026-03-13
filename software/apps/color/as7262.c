@@ -15,7 +15,7 @@
 
 static const nrf_twi_mngr_t* i2c_manager = NULL;
 
-// Low-level I2C: read one physical register
+// read one physical register
 static uint8_t i2c_read_byte(uint8_t reg) {
   uint8_t rx_buf = 0;
   nrf_twi_mngr_transfer_t const xfer[] = {
@@ -29,7 +29,7 @@ static uint8_t i2c_read_byte(uint8_t reg) {
   return rx_buf;
 }
 
-// Low-level I2C: write one physical register
+// write one physical register
 static void i2c_write_byte(uint8_t reg, uint8_t data) {
   uint8_t msg[2] = {reg, data};
   nrf_twi_mngr_transfer_t xfer = NRF_TWI_MNGR_WRITE(AS7262_ADDRESS, msg, 2, 0);
@@ -39,7 +39,7 @@ static void i2c_write_byte(uint8_t reg, uint8_t data) {
   }
 }
 
-// Wait until the TX_VALID bit is clear (device ready to accept a write)
+// wait until TX_VALID bit is clear (device ready to accept write)
 static void wait_for_tx_ready(void) {
   for (int i = 0; i < 200; i++) {
     uint8_t status = i2c_read_byte(AS7262_STATUS_REG);
@@ -49,7 +49,7 @@ static void wait_for_tx_ready(void) {
   printf("AS7262: TX ready timeout\n");
 }
 
-// Wait until the RX_VALID bit is set (data available to read)
+// wait until RX_VALID bit is set (data available to read)
 static void wait_for_rx_ready(void) {
   for (int i = 0; i < 200; i++) {
     uint8_t status = i2c_read_byte(AS7262_STATUS_REG);
@@ -59,27 +59,19 @@ static void wait_for_rx_ready(void) {
   printf("AS7262: RX ready timeout\n");
 }
 
-// Read a virtual register
+// read virtual register
 static uint8_t virtual_reg_read(uint8_t vreg) {
-  // 1. Wait for TX ready
   wait_for_tx_ready();
-  // 2. Write the virtual register address (with bit 7 clear for read)
   i2c_write_byte(AS7262_WRITE_REG, vreg);
-  // 3. Wait for RX ready
   wait_for_rx_ready();
-  // 4. Read the result
   return i2c_read_byte(AS7262_READ_REG);
 }
 
-// Write a virtual register
+// write virtual register
 static void virtual_reg_write(uint8_t vreg, uint8_t data) {
-  // 1. Wait for TX ready
   wait_for_tx_ready();
-  // 2. Write the virtual register address with bit 7 set for write
   i2c_write_byte(AS7262_WRITE_REG, vreg | 0x80);
-  // 3. Wait for TX ready again
   wait_for_tx_ready();
-  // 4. Write the data
   i2c_write_byte(AS7262_WRITE_REG, data);
 }
 
@@ -99,9 +91,7 @@ static float read_calibrated_float(uint8_t reg_start) {
 void as7262_init(const nrf_twi_mngr_t* i2c) {
   i2c_manager = i2c;
 
-  nrf_delay_ms(100); // wait for sensor boot
-
-  // Read hardware version to verify communication
+  nrf_delay_ms(100); 
   uint8_t hw_ver = virtual_reg_read(AS7262_HW_VERSION);
   printf("AS7262 HW version: 0x%02X\n", hw_ver);
 
@@ -117,12 +107,11 @@ void as7262_init(const nrf_twi_mngr_t* i2c) {
   // LED_CONTROL: [3]=LED_EN, [2:0]=LED_CURRENT (000 = 12.5mA)
   virtual_reg_write(AS7262_LED_CONTROL, 0x08);
 
-  nrf_delay_ms(200); // wait for first measurement
+  nrf_delay_ms(200);
   printf("AS7262 initialized\n");
 }
 
 as7262_color_t as7262_read_color(void) {
-  // Wait for data ready
   for (int i = 0; i < 100; i++) {
     uint8_t control = virtual_reg_read(AS7262_CONTROL_SETUP);
     if (control & AS7262_DATA_RDY) break;
@@ -143,31 +132,23 @@ as7262_color_t as7262_read_color(void) {
 const char* as7262_color_name(as7262_color_t c) {
     float total = c.violet + c.blue + c.green + c.yellow + c.orange + c.red;
 
-    // 1. Absolute Brightness Check
-    // Lowered to 800 to allow the dark eggplant to register
+    // total brightness
     if (total < 800.0f) {
         return "Nothing";
     }
 
-    // 2. EGGPLANT
-    // Eggplant is the only topping where Violet completely overpowers Orange and Red
+    // Eggplant is only topping where Violet completely overpowers Orange and Red
     if (c.violet > c.orange && c.violet > c.red) {
         return "Eggplant";
     }
 
-    // 3. VEGGIES
-    // Green dominates
     if (c.green > c.orange) {
         return "Veggies";
     }
 
-    // 4. PEPPERONI
-    // Red heavily dominates Green
     if (c.red > (c.green * 1.5f)) {
         return "Pepperoni";
     }
 
-    // 5. CHEESE
-    // If it's bright enough to pass step 1, but doesn't fit the others
     return "Cheese";
 }

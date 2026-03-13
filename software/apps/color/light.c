@@ -10,7 +10,6 @@
 #include "light.h"
 #include "nrf_delay.h"
 
-// Pointer to an initialized I2C instance to use for transactions
 static const nrf_twi_mngr_t* i2c_manager = NULL;
 
 static void bh1750_write_command(uint8_t cmd) {
