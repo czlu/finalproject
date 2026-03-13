@@ -101,7 +101,7 @@ class PizzaGame:
 
         # New pizza button
         tk.Button(root, text="New Pizza", font=("Helvetica", 14, "bold"),
-                  fg="white", bg="#3B82F6", activebackground="#2563EB",
+                  fg="black", bg="#F63B8C", activebackground="#D725EB",
                   relief=tk.FLAT, padx=20, pady=8, command=self.new_round).pack(pady=(10, 15))
 
         # Channel bars
