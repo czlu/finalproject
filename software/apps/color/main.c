@@ -46,7 +46,7 @@ static uint8_t step = 0;
 static bool done = false;         // True when all toppings are added
 static bool baking = false;       // True when waiting for the oven
 static bool pizza_ready = false;  // True when it comes out of the oven
-static uint8_t score = 0;
+static int16_t score = 0;         // Changed to signed int so score can go negative!
 static const char* last_scan = "Nothing";
 static bool needs_redraw = true;
 static char message[40] = "Knead the dough!";
@@ -207,33 +207,46 @@ void game_tick(void* _unused) {
     // Phase 2: Baking in the Oven
     else if (baking) {
         float current_lux = bh1750_read_lux();
-        printf("Oven Light Level: %.1f Lux\n", current_lux);
         
-        // If lux is very low, the "oven" lid is closed!
+        // The oven lid is CLOSED (Dark)
         if (current_lux < 20.0f) {
-            if (bake_time == 0) {
-                snprintf(message, sizeof(message), "Baking...");
-                message_color = COLOR_RED; // Set text to RED while baking
-                needs_redraw = true;
+            bake_time++; // Increase the timer every second
+            
+            if (bake_time < 10) {
+                snprintf(message, sizeof(message), "Baking... %ds", bake_time);
+                message_color = COLOR_YELLOW;
+            } else if (bake_time >= 10 && bake_time < 17) {
+                snprintf(message, sizeof(message), "DONE! Take out oven!");
+                message_color = COLOR_GREEN;
+            } else if (bake_time >= 17) {
+                snprintf(message, sizeof(message), "BURNING! Take out oven!");
+                message_color = COLOR_RED;
             }
+            needs_redraw = true;
             
-            bake_time++; // Increase the timer
-            
-            // Require it to be dark for ~3 seconds (3 ticks)
-            if (bake_time >= 3) {
+        } 
+        // The oven lid is OPEN (Light)
+        else {
+            if (bake_time >= 17) {
+                // They pulled out a burnt pizza
+                baking = false;
+                pizza_ready = true;
+                score -= 2; // Punish the player!
+                snprintf(message, sizeof(message), "Burnt to a crisp! -2");
+                message_color = COLOR_RED;
+                needs_redraw = true;
+            } else if (bake_time >= 10) {
+                // They pulled it out at the perfect time!
                 baking = false;
                 pizza_ready = true;
                 score++;
-                
-                snprintf(message, sizeof(message), "PIZZA READY!");
+                snprintf(message, sizeof(message), "PIZZA PERFECT! +1");
                 message_color = COLOR_GREEN;
                 needs_redraw = true;
-            }
-        } else {
-            // If they open the oven too early, reset the baking timer
-            if (bake_time > 0) {
+            } else if (bake_time > 0) {
+                // They peaked! Reset the timer to punish them.
                 bake_time = 0;
-                snprintf(message, sizeof(message), "Put in Oven!");
+                snprintf(message, sizeof(message), "Too early! Put back!");
                 message_color = COLOR_ORANGE;
                 needs_redraw = true;
             }
