@@ -165,7 +165,7 @@ void lcd_init(void) {
     spi_write_cmd(0x3A);
     spi_write_data(0x55);
     spi_write_cmd(0x36);
-    spi_write_data(0x48);
+    spi_write_data(0x88); // 180 degree rotation
     spi_write_cmd(0x29);
     nrf_delay_ms(100);
 }

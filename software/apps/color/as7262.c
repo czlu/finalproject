@@ -142,12 +142,22 @@ const char* as7262_color_name(as7262_color_t c) {
         return "Eggplant";
     }
 
-    if (c.green > c.orange) {
-        return "Veggies";
+    // CHEESE: G, Y, O are all close together (broad warm spectrum)
+    // Green and Orange within 30% of each other means no single channel dominates
+    float gyo_max = c.green > c.orange ? c.green : c.orange;
+    float gyo_min = c.green < c.orange ? c.green : c.orange;
+    if (gyo_min > gyo_max * 0.7f && c.yellow > c.blue) {
+        return "Cheese";
     }
 
-    if (c.red > (c.green * 1.5f)) {
+    // PEPPERONI: orange clearly dominates green
+    if (c.orange > c.green * 1.2f && c.red > c.blue) {
         return "Pepperoni";
+    }
+
+    // VEGGIES: green dominates orange
+    if (c.green > c.orange) {
+        return "Veggies";
     }
 
     return "Cheese";

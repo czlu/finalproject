@@ -72,7 +72,7 @@ static void pick_new_pizza(void) {
     last_scan = "Nothing";
     bake_time = 0;
     
-    dough_presses_needed = 5 + (rand() % 6);
+    dough_presses_needed = 4 + (rand() % 3);
     dough_ready = false;
     
     strcpy(message, "Knead the dough!");
@@ -84,7 +84,7 @@ static void draw_game(void) {
     const pizza_t* p = &pizzas[current_pizza];
 
     lcd_fill_screen(COLOR_BLACK);
-    lcd_draw_string_2x(30, 10, "PIZZA BUILDER", COLOR_ORANGE, COLOR_BLACK);
+    lcd_draw_string_2x(10, 10, "STEPHEN'S PIZZERIA", COLOR_ORANGE, COLOR_BLACK);
 
     char title[30];
     snprintf(title, sizeof(title), "Order: %s", p->name);
@@ -156,17 +156,24 @@ static void handle_scan(const char* ingredient) {
 void game_tick(void* _unused) {
     (void)_unused;
 
+    // Always read and print sensor data for debugging
+    as7262_color_t color = as7262_read_color();
+    const char* current = as7262_color_name(color);
+    uint16_t force = fsr_read_raw();
+    float lux = bh1750_read_lux();
+
+    printf("V:%.1f B:%.1f G:%.1f Y:%.1f O:%.1f R:%.1f => %s | FSR:%u | Lux:%.1f\n",
+        color.violet, color.blue, color.green,
+        color.yellow, color.orange, color.red, current, force, lux);
+
     // toppings
     if (dough_ready && !done) {
-        as7262_color_t color = as7262_read_color();
-        const char* current = as7262_color_name(color);
-
         if (strcmp(current, "Nothing") == 0) {
             candidate_scan = "Nothing";
             match_count = 0;
         } else if (strcmp(current, candidate_scan) == 0) {
             match_count++;
-            if (match_count == 3) {
+            if (match_count == 2) {
                 handle_scan(current);
                 match_count = 0; 
                 candidate_scan = "Nothing"; 
@@ -178,10 +185,8 @@ void game_tick(void* _unused) {
     } 
     // baking
     else if (baking) {
-        float current_lux = bh1750_read_lux();
-        
         // currently baking
-        if (current_lux < 20.0f) {
+        if (lux < 20.0f) {
             bake_time++; 
             
             if (bake_time < 10) {
