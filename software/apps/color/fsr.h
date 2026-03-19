@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-// Initialize the ADC for the micro:bit P0 (AIN4 on nRF52833)
+// Initialize the ADC for the p0
 void fsr_init(void);
 
 // Read the raw 12-bit value (0-4095)

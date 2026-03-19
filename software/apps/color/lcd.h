@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-// Standard 16-bit RGB565 Colors
+// 16-bit colors
 #define COLOR_BLACK   0x0000
 #define COLOR_RED     0xF800
 #define COLOR_GREEN   0x07E0
@@ -14,10 +14,10 @@
 #define COLOR_GRAY    0x7BEF
 #define COLOR_DARK    0x2104
 
-// Setup the SPI pins and boot the screen
+// setup for spi pins and screen boot
 void lcd_init(void);
 
-// Fill the entire 240x320 screen with one color
+// Fill the entire screen with one color
 void lcd_fill_screen(uint16_t color);
 
 // Fill a rectangle with a color

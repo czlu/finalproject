@@ -1,5 +1,9 @@
 // LSM303AGR accelerometer and magnetometer
 
+// this is ripped straight from the i2c lab
+// hence all the comments because we realized
+// didn't need most of this during lab
+
 #pragma once
 
 #include "nrf_twi_mngr.h"

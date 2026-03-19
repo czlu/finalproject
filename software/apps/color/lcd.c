@@ -1,3 +1,10 @@
+// nrf52 spi tft lcd driver
+//
+// provides low-level control for a 240x320 color display using the 
+// nrfx spim peripheral. includes an embedded 5x7 ascii font with 
+// support for screen clearing, rectangular fills, and character 
+// rendering at 1x and 2x scales.
+
 #include "nrf_gpio.h"
 #include "nrfx_spim.h"
 #include "nrf_delay.h"
@@ -12,7 +19,7 @@
 
 static const nrfx_spim_t spi = NRFX_SPIM_INSTANCE(2);
 
-// 5x7 ASCII font (chars 32-126)
+// 5x7 ASCII font lib we found
 static const uint8_t font5x7[][5] = {
   {0x00,0x00,0x00,0x00,0x00}, // 32 space
   {0x00,0x00,0x5F,0x00,0x00}, // 33 !
@@ -228,7 +235,7 @@ void lcd_draw_char(uint16_t x, uint16_t y, char c, uint16_t fg, uint16_t bg) {
     if (c < 32 || c > 126) c = '?';
     const uint8_t* glyph = font5x7[c - 32];
 
-    // Each char is 6 wide (5 + 1 spacing) x 8 tall
+    // Each char is 6 wide (5 + 1 spacing) and 8 tall
     lcd_set_window(x, y, x + 5, y + 7);
 
     nrf_gpio_pin_set(LCD_DC);
@@ -267,7 +274,7 @@ void lcd_draw_string_2x(uint16_t x, uint16_t y, const char* str, uint16_t fg, ui
         if (c < 32 || c > 126) c = '?';
         const uint8_t* glyph = font5x7[c - 32];
 
-        // 2x scale: 12 wide (10 + 2 spacing) x 16 tall
+        // 2x scale so 12 wide (10 + 2 spacing) and 16 tall now
         lcd_set_window(x, y, x + 11, y + 15);
 
         nrf_gpio_pin_set(LCD_DC);
@@ -275,7 +282,7 @@ void lcd_draw_string_2x(uint16_t x, uint16_t y, const char* str, uint16_t fg, ui
 
         uint8_t pixel[2];
         for (uint8_t row = 0; row < 8; row++) {
-            // Each font row drawn twice (2x vertical)
+            // Each font row drawn twice for doublin vert
             for (int dup = 0; dup < 2; dup++) {
                 for (uint8_t col = 0; col < 6; col++) {
                     bool on = false;
@@ -285,7 +292,7 @@ void lcd_draw_string_2x(uint16_t x, uint16_t y, const char* str, uint16_t fg, ui
                     uint16_t color = on ? fg : bg;
                     pixel[0] = color >> 8;
                     pixel[1] = color & 0xFF;
-                    // Each pixel drawn twice (2x horizontal)
+                    // Each pixel drawn twice for doubling horizontal
                     nrfx_spim_xfer_desc_t xfer = NRFX_SPIM_XFER_TX(pixel, 2);
                     nrfx_spim_xfer(&spi, &xfer, 0);
                     nrfx_spim_xfer(&spi, &xfer, 0);

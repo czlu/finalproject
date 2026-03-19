@@ -1,3 +1,9 @@
+// nrf52 saadc force sensitive resistor (fsr) code
+//
+// configures the saadc for adc on ain0. uses a blocking task-event 
+// handshake (start -> sample -> stop) to capture raw 10-bit or 12-bit 
+// pressure data from the fsr sensor.
+
 #include "nrf.h"
 #include "fsr.h"
 
